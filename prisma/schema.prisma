@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+ 
+}
+
+model User {
+  id              String            @id @default(uuid())
+  clerkUserId     String            @unique
+  email           String            @unique
+  name            String?
+  imageUrl        String?
+  industry        String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  bio             String?
+  experience      Int?
+  skills          String[]
+  assessments     Assessment[]
+  coverLetter     CoverLetter?
+  resume          Resume?
+  industryInsight IndustryInsights? @relation(fields: [industry], references: [industry])
+}
+
+model Assessment {
+  id          String   @id @default(cuid())
+  userId      String
+  quizScore   Float
+  category    String
+  improvement String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  questions   Json
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model Resume {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model CoverLetter {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  content        String
+  jobDescription String?
+  companyName    String?
+  jobTitle       String?
+  status         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model IndustryInsights {
+  id                String        @id @default(uuid())
+  industry          String        @unique
+  growthRate        Float
+  demandLevel       DemandLevel
+  topSkills         String[]
+  marketOutlook     MarketOutlook
+  keyTrends         String[]
+  recommendedSkills String[]
+  lastUpdate        DateTime      @default(now())
+  nextUpdate        DateTime
+  salaryRanges      Json
+  users             User[]
+
+  @@index([industry])
+}
+
+enum DemandLevel {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum MarketOutlook {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
