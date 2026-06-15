@@ -22,26 +22,26 @@ export async function generateQuiz() {
   if (!user) throw new Error("User not found");
 
   const prompt = `
-    Generate 10 technical interview questions for a ${
-      user.industry
-    } professional${
+Generate 10 technical interview questions for a ${
+    user.industry
+  } professional${
     user.skills?.length ? ` with expertise in ${user.skills.join(", ")}` : ""
   }.
-    
-    Each question should be multiple choice with 4 options.
-    
-    Return the response in this JSON format only, no additional text:
+
+Each question should be multiple choice with 4 options.
+
+Return the response in this JSON format only, no additional text:
+{
+  "questions": [
     {
-      "questions": [
-        {
-          "question": "string",
-          "options": ["string", "string", "string", "string"],
-          "correctAnswer": "string",
-          "explanation": "string"
-        }
-      ]
+      "question": "string",
+      "options": ["string", "string", "string", "string"],
+      "correctAnswer": "string",
+      "explanation": "string"
     }
-  `;
+  ]
+}
+`;
 
   try {
     const result = await model.generateContent(prompt);
@@ -53,7 +53,7 @@ export async function generateQuiz() {
     return quiz.questions;
   } catch (error) {
     console.error("Error generating quiz:", error?.message || error);
-    // Fallback: return a small set of generic multiple-choice questions
+
     const fallbackQuestions = [
       {
         question: `What is a common responsibility in ${user.industry} roles?`,
@@ -64,29 +64,8 @@ export async function generateQuiz() {
           "All of the above",
         ],
         correctAnswer: "All of the above",
-        explanation: "Many roles involve a mix of technical and user-focused responsibilities depending on the position.",
-      },
-      {
-        question: `Which skill is commonly important for ${user.industry} professionals?`,
-        options: [
-          user.skills?.[0] || "Communication",
-          user.skills?.[1] || "Debugging",
-          user.skills?.[2] || "Testing",
-          "All of the above",
-        ],
-        correctAnswer: "All of the above",
-        explanation: "A combination of technical and soft skills is often required.",
-      },
-      {
-        question: "When debugging, what is a good first step?",
-        options: [
-          "Read the error message",
-          "Restart the server",
-          "Refactor code immediately",
-          "Ignore and continue",
-        ],
-        correctAnswer: "Read the error message",
-        explanation: "Understanding the error helps isolate the root cause before making changes.",
+        explanation:
+          "Many roles involve a mix of technical and user-focused responsibilities depending on the position.",
       },
     ];
 
@@ -112,11 +91,10 @@ export async function saveQuizResult(questions, answers, score) {
     explanation: q.explanation,
   }));
 
-  // Get wrong answers
   const wrongAnswers = questionResults.filter((q) => !q.isCorrect);
 
-  // Only generate improvement tips if there are wrong answers
   let improvementTip = null;
+
   if (wrongAnswers.length > 0) {
     const wrongQuestionsText = wrongAnswers
       .map(
@@ -126,24 +104,19 @@ export async function saveQuizResult(questions, answers, score) {
       .join("\n\n");
 
     const improvementPrompt = `
-      The user got the following ${user.industry} technical interview questions wrong:
+The user got the following ${user.industry} technical interview questions wrong:
 
-      ${wrongQuestionsText}
+${wrongQuestionsText}
 
-      Based on these mistakes, provide a concise, specific improvement tip.
-      Focus on the knowledge gaps revealed by these wrong answers.
-      Keep the response under 2 sentences and make it encouraging.
-      Don't explicitly mention the mistakes, instead focus on what to learn/practice.
-    `;
+Provide a concise improvement tip in under 2 sentences.
+Be encouraging and focus on what to learn.
+`;
 
     try {
       const tipResult = await model.generateContent(improvementPrompt);
-
       improvementTip = tipResult.response.text().trim();
-      console.log(improvementTip);
     } catch (error) {
       console.error("Error generating improvement tip:", error);
-      // Continue without improvement tip if generation fails
     }
   }
 
@@ -154,7 +127,9 @@ export async function saveQuizResult(questions, answers, score) {
         quizScore: score,
         questions: questionResults,
         category: "Technical",
-        improvementTip,
+
+        // ✅ FIXED HERE
+        improvement: improvementTip,
       },
     });
 
