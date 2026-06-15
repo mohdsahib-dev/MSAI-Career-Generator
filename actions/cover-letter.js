@@ -8,72 +8,65 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 export async function generateCoverLetter(data) {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
-
-  const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
-  });
-
-  if (!user) throw new Error("User not found");
-
-  const prompt = `
-    Write a professional cover letter for a ${data.jobTitle} position at ${
-    data.companyName
-  }.
-    
-    About the candidate:
-    - Industry: ${user.industry}
-    - Years of Experience: ${user.experience}
-    - Skills: ${user.skills?.join(", ")}
-    - Professional Background: ${user.bio}
-    
-    Job Description:
-    ${data.jobDescription}
-    
-    Requirements:
-    1. Use a professional, enthusiastic tone
-    2. Highlight relevant skills and experience
-    3. Show understanding of the company's needs
-    4. Keep it concise (max 400 words)
-    5. Use proper business letter formatting in markdown
-    6. Include specific examples of achievements
-    7. Relate candidate's background to job requirements
-    
-    Format the letter in markdown.
-  `;
-
   try {
+    const { userId } = await auth();
+    if (!userId) throw new Error("Unauthorized");
+
+    const user = await db.user.findUnique({
+      where: { clerkUserId: userId },
+    });
+
+    if (!user) {
+      throw new Error("User not found in database");
+    }
+
+    const prompt = `
+Write a professional cover letter for a ${data.jobTitle} position at ${data.companyName}.
+
+About the candidate:
+- Industry: ${user.industry || "Not provided"}
+- Years of Experience: ${user.experience || "Not provided"}
+- Skills: ${
+      Array.isArray(user.skills)
+        ? user.skills.join(", ")
+        : user.skills || "Not provided"
+    }
+- Professional Background: ${user.bio || "Not provided"}
+
+Job Description:
+${data.jobDescription}
+
+Requirements:
+1. Professional tone
+2. Highlight relevant skills
+3. Show company understanding
+4. Max 400 words
+5. Proper business format
+6. Include achievements
+7. Match job requirements
+`;
+
     const result = await model.generateContent(prompt);
     const content = result.response.text().trim();
+
     const coverLetter = await db.coverLetter.create({
       data: {
         content,
         jobDescription: data.jobDescription,
         companyName: data.companyName,
-        
+        jobTitle: data.jobTitle,
         userId: user.id,
       },
     });
 
     return coverLetter;
   } catch (error) {
-    console.error("Error generating cover letter:", error?.message || error);
-    // Fallback: generate a simple template using available user data
-    const fallback = `Dear Hiring Manager,\n\nI am excited to apply for the ${data.jobTitle} role at ${data.companyName}. With experience in ${user.industry || "the industry"} and skills including ${user.skills?.join(", ") || "relevant skills"}, I bring a strong background in delivering results. I look forward to the opportunity to discuss how I can contribute to ${data.companyName}.\n\nSincerely,\n${user.name || "Candidate"}`;
+    console.error("Cover Letter Error:", error);
 
-    const coverLetter = await db.coverLetter.create({
-      data: {
-        content: fallback,
-        jobDescription: data.jobDescription,
-        companyName: data.companyName,
-        jobTitle: data.jobTitle,
-        status: "fallback",
-        userId: user.id,
-      },
-    });
-
-    return coverLetter;
+    return {
+      error: true,
+      message: "Failed to generate cover letter. Please try again.",
+    };
   }
 }
 
@@ -88,12 +81,8 @@ export async function getCoverLetters() {
   if (!user) throw new Error("User not found");
 
   return await db.coverLetter.findMany({
-    where: {
-      userId: user.id,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
+    where: { userId: user.id },
+    orderBy: { createdAt: "desc" },
   });
 }
 
@@ -107,7 +96,7 @@ export async function getCoverLetter(id) {
 
   if (!user) throw new Error("User not found");
 
-  return await db.coverLetter.findUnique({
+  return await db.coverLetter.findFirst({
     where: {
       id,
       userId: user.id,
